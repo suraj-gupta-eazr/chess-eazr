@@ -13,6 +13,7 @@ export async function refresh(request: Request, response: Response) {
   response.json(await authService.refresh(refreshToken))
 }
 export async function forgotPassword(request: Request, response: Response) {
-  await authService.forgotPassword(forgotPasswordSchema.parse(request.body))
+  const result = await authService.forgotPassword(forgotPasswordSchema.parse(request.body))
+  if (result) return response.json(result)
   response.status(202).json({ message: 'If the details match, a password reset link is on its way.' })
 }

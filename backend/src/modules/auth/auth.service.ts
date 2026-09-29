@@ -42,6 +42,13 @@ export async function forgotPassword(input: z.infer<typeof forgotPasswordSchema>
     join auth.users u on u.id = p.id
     where lower(u.email) = ${input.email} and p.age = ${input.age}
   `
+  if (env.allowInsecureAgeReset) {
+    if (!account) throw new AppError('Email and age do not match')
+    if (!input.password) return { verified: true }
+    const { error } = await supabaseAdmin.auth.admin.updateUserById(String(account.id), { password: input.password })
+    if (error) throw new AppError('Could not update password', 500)
+    return { updated: true }
+  }
   if (!account) return
 
   const redirectTo = new URL('/reset-password', env.webOrigins[0]).toString()

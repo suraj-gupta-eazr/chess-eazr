@@ -21,18 +21,33 @@ export function LoginPage({ onSession }: { onSession: (session: Session) => void
 }
 
 export function ForgotPasswordPage() {
+  const directTestMode = import.meta.env.DEV
+  const [verified, setVerified] = useState(false)
+  const [details, setDetails] = useState<{ email: string; age: string } | null>(null)
   const [message, setMessage] = useState('')
   const [error, setError] = useState('')
   const [busy, setBusy] = useState(false)
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError('')
     try {
-      const data = await api<{ message: string }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(Object.fromEntries(new FormData(event.currentTarget))) })
-      setMessage(data.message)
+      const form = Object.fromEntries(new FormData(event.currentTarget)) as { email: string; age: string }
+      const data = await api<{ message?: string; verified?: boolean }>('/auth/forgot-password', { method: 'POST', body: JSON.stringify(form) })
+      if (data.verified) { setDetails(form); setVerified(true) }
+      else setMessage(data.message ?? '')
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
-  return <PublicLayout><div className="auth-form-wrap"><p className="folio">ACCOUNT RECOVERY / 03</p><h2>Reset your clock.</h2><p className="muted">Enter the email and age used for your account. We’ll email you a secure reset link.</p>
-    <form onSubmit={submit} className="form-stack"><Field label="Email address"><input name="email" type="email" autoComplete="email" required /></Field><Field label="Age"><input name="age" type="number" min="13" max="120" required /></Field>{message && <p className="form-message" role="status">{message}</p>}{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary" disabled={busy}>{busy ? 'Sending…' : 'Send reset link'}</button></form>
+  async function updatePassword(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault(); setBusy(true); setError('')
+    const form = new FormData(event.currentTarget)
+    const password = String(form.get('password'))
+    if (password !== form.get('confirmPassword')) { setError('Passwords do not match.'); setBusy(false); return }
+    try {
+      await api('/auth/forgot-password', { method: 'POST', body: JSON.stringify({ ...details, password }) })
+      setMessage('Password updated. You can log in now.'); setVerified(false)
+    } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
+  }
+  return <PublicLayout><div className="auth-form-wrap"><p className="folio">ACCOUNT RECOVERY / 03</p><h2>Reset your clock.</h2><p className="muted">{directTestMode ? 'Local test mode: match the account email and age, then choose a new password.' : 'Enter the email and age used for your account. We’ll email you a secure reset link.'}</p>
+    {verified ? <form onSubmit={updatePassword} className="form-stack"><Field label="New password"><input name="password" type="password" minLength={8} maxLength={128} autoComplete="new-password" required /></Field><Field label="Confirm new password"><input name="confirmPassword" type="password" minLength={8} maxLength={128} autoComplete="new-password" required /></Field>{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary" disabled={busy}>{busy ? 'Updating…' : 'Update password'}</button></form> : <form onSubmit={submit} className="form-stack"><Field label="Email address"><input name="email" type="email" autoComplete="email" required /></Field><Field label="Age"><input name="age" type="number" min="13" max="120" required /></Field>{message && <p className="form-message" role="status">{message}</p>}{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary" disabled={busy}>{busy ? directTestMode ? 'Checking…' : 'Sending…' : directTestMode ? 'Continue' : 'Send reset link'}</button></form>}
     <p className="switch-copy"><Link to="/login">← Back to login</Link></p>
   </div></PublicLayout>
 }

@@ -12,4 +12,5 @@ export const refreshSchema = z.object({ refreshToken: z.string().min(1) })
 export const forgotPasswordSchema = z.object({
   email: z.string().trim().toLowerCase().email(),
   age: z.coerce.number().int().min(13).max(120),
+  password: z.string().min(8).max(128).optional(),
 })
