@@ -4,9 +4,10 @@ import { auth } from './api'
 const url = import.meta.env.VITE_SUPABASE_URL
 const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 
-export const realtime = url && key
+export const supabase = url && key
   ? createClient(url, key, { auth: { persistSession: false, autoRefreshToken: false } })
   : null
+export const realtime = supabase
 
 export async function authorizeRealtime() {
   const token = auth.get()?.access_token

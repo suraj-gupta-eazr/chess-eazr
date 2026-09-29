@@ -1,8 +1,10 @@
 import { supabaseAdmin, supabaseAuth } from '../../config/supabase.js'
+import { db } from '../../config/database.js'
+import { env } from '../../config/env.js'
 import { AppError } from '../../shared/http.js'
 import { createAvailableUsername } from '../profiles/profile.service.js'
 import type { z } from 'zod'
-import type { loginSchema, registerSchema } from './auth.schema.js'
+import type { forgotPasswordSchema, loginSchema, registerSchema } from './auth.schema.js'
 
 export async function register(input: z.infer<typeof registerSchema>) {
   const username = await createAvailableUsername(input.name)
@@ -32,4 +34,17 @@ export async function refresh(refreshToken: string) {
   const { data, error } = await supabaseAuth.auth.refreshSession({ refresh_token: refreshToken })
   if (error) throw new AppError('Session expired', 401)
   return { session: data.session }
+}
+
+export async function forgotPassword(input: z.infer<typeof forgotPasswordSchema>) {
+  const [account] = await db`
+    select p.id from profiles p
+    join auth.users u on u.id = p.id
+    where lower(u.email) = ${input.email} and p.age = ${input.age}
+  `
+  if (!account) return
+
+  const redirectTo = new URL('/reset-password', env.webOrigins[0]).toString()
+  const { error } = await supabaseAuth.auth.resetPasswordForEmail(input.email, { redirectTo })
+  if (error) console.error('Password recovery email failed:', error.message)
 }

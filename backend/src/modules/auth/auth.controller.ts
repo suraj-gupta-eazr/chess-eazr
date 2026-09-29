@@ -1,5 +1,5 @@
 import type { Request, Response } from 'express'
-import { loginSchema, refreshSchema, registerSchema } from './auth.schema.js'
+import { forgotPasswordSchema, loginSchema, refreshSchema, registerSchema } from './auth.schema.js'
 import * as authService from './auth.service.js'
 
 export async function register(request: Request, response: Response) {
@@ -11,4 +11,8 @@ export async function login(request: Request, response: Response) {
 export async function refresh(request: Request, response: Response) {
   const { refreshToken } = refreshSchema.parse(request.body)
   response.json(await authService.refresh(refreshToken))
+}
+export async function forgotPassword(request: Request, response: Response) {
+  await authService.forgotPassword(forgotPasswordSchema.parse(request.body))
+  response.status(202).json({ message: 'If the details match, a password reset link is on its way.' })
 }

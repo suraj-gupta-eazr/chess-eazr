@@ -72,6 +72,8 @@ button:disabled { cursor: not-allowed; opacity: .55; }
 .button-light { color: var(--ink); background: var(--paper-light); }
 .switch-copy { margin-top: 27px; color: var(--muted); font-size: 13px; }
 .switch-copy a { color: var(--red); font-weight: 700; }
+.forgot-link { justify-self: end; margin-top: -12px; color: var(--red); font-size: 12px; font-weight: 700; }
+.button-link { display: grid; place-items: center; margin-top: 22px; text-decoration: none; }
 .form-error, .form-message { padding: 12px 14px; border-left: 3px solid var(--red); background: #ead8d1; color: #681c26; font-size: 13px; }
 .form-message { max-width: 680px; margin-inline: auto; border-color: var(--green); background: #dce1d7; color: #364739; }
 

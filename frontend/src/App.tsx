@@ -2,7 +2,7 @@ import { lazy, Suspense, useEffect, useState } from 'react'
 import { Navigate, Route, Routes } from 'react-router-dom'
 import { Shell } from './components/Shell'
 import { Loading } from './components/ui'
-import { LoginPage, RegisterPage } from './pages/AuthPages'
+import { ForgotPasswordPage, LoginPage, RegisterPage, ResetPasswordPage } from './pages/AuthPages'
 import { api, auth, type Session } from './services/api'
 import type { Profile } from './types/domain'
 
@@ -24,7 +24,7 @@ export default function App() {
 
   function logout() { auth.set(null); setSession(null); setProfile(null) }
 
-  if (!session) return <Routes><Route path="/register" element={<RegisterPage onSession={setSession} />} /><Route path="*" element={<LoginPage onSession={setSession} />} /></Routes>
+  if (!session) return <Routes><Route path="/register" element={<RegisterPage onSession={setSession} />} /><Route path="/forgot-password" element={<ForgotPasswordPage />} /><Route path="/reset-password" element={<ResetPasswordPage />} /><Route path="*" element={<LoginPage onSession={setSession} />} /></Routes>
   if (!profile) return <Loading message="Opening the club…" />
 
   return <Shell profile={profile} onLogout={logout}><Suspense fallback={<Loading message="Preparing the page…" />}><Routes>
