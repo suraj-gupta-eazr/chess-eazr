@@ -14,7 +14,7 @@ export function LoginPage({ onSession }: { onSession: (session: Session) => void
     } catch (cause) { setError((cause as Error).message) } finally { setBusy(false) }
   }
   return <PublicLayout><div className="auth-form-wrap"><p className="folio">MEMBER ACCESS / 01</p><h2>Welcome back.</h2><p className="muted">Your next game is waiting.</p>
-    <form onSubmit={submit} className="form-stack"><Field label="Email address"><input name="email" type="email" autoComplete="email" required /></Field><Field label="Password"><input name="password" type="password" autoComplete="current-password" required /></Field>{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary" disabled={busy}>{busy ? 'Signing in…' : 'Enter the club'}</button></form>
+    <form onSubmit={submit} className="form-stack"><Field label="Email address"><input name="email" type="email" autoComplete="email" required /></Field><Field label="Password"><input name="password" type="password" autoComplete="current-password" required /></Field>{error && <p className="form-error" role="alert">{error}</p>}<button className="button button-primary" disabled={busy}>{busy ? 'Logging in…' : 'Login'}</button></form>
     <p className="switch-copy">New to the board? <Link to="/register">Create an account</Link></p>
   </div></PublicLayout>
 }
