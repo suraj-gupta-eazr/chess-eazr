@@ -1,0 +1,10 @@
+export type Profile = { id: string; name: string; username: string; email: string; age: number; gender: string }
+export type Club = { id: string; name: string; slug: string; visibility: 'public' | 'private'; owner_id: string; member_count?: number; joined?: boolean }
+export type Member = { id: string; name: string; username: string; role: 'admin' | 'member' }
+export type Tournament = { id: string; name: string; format: 'short' | 'ipl'; status: 'draft' | 'active' | 'finished' }
+export type ClubDetail = Club & { members: Member[]; tournaments: Tournament[]; joined: boolean }
+export type Match = { id: string; stage: string; round: number; position: number; player1_id: string; player2_id: string; player1_username: string; player2_username: string; winner_username?: string; winner_id?: string; status: string; game_id?: string }
+export type TournamentGame = { id: string; match_id: string; stage: string; round: number; position: number; white_id: string; black_id: string; white_username: string; black_username: string; status: string; result?: string; started_at?: string; finished_at?: string }
+export type TournamentDetail = Tournament & { viewer_is_owner: boolean; participants: Array<{ user_id: string; username: string; points: number; wins: number }>; matches: Match[]; games: TournamentGame[] }
+export type GameMove = { ply: number; san: string; from_square: string; to_square: string; fen_after: string; white_ms: number; black_ms: number; played_at: string }
+export type Game = { id: string; white_id: string; black_id: string; white_username: string; black_username: string; viewer_role: 'white' | 'black' | 'spectator'; fen: string; pgn: string; moves: GameMove[]; white_ms: number; black_ms: number; last_move_at: string; last_move?: string; version: number; status: string; result?: string }
