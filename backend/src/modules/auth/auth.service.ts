@@ -1,4 +1,4 @@
-import { supabaseAuth } from '../../config/supabase.js'
+import { supabaseAdmin, supabaseAuth } from '../../config/supabase.js'
 import { AppError } from '../../shared/http.js'
 import { createAvailableUsername } from '../profiles/profile.service.js'
 import type { z } from 'zod'
@@ -6,13 +6,19 @@ import type { loginSchema, registerSchema } from './auth.schema.js'
 
 export async function register(input: z.infer<typeof registerSchema>) {
   const username = await createAvailableUsername(input.name)
-  const { data, error } = await supabaseAuth.auth.signUp({
+  const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
     email: input.email,
     password: input.password,
-    options: { data: { name: input.name, age: input.age, gender: input.gender, username } },
+    email_confirm: true,
+    user_metadata: { name: input.name, age: input.age, gender: input.gender, username },
   })
-  if (error) throw new AppError(error.message)
-  if (!data.session) throw new AppError('Disable email confirmation in Supabase to allow immediate sign-in', 503)
+  if (createError || !created.user) throw new AppError(createError?.message ?? 'Could not create account', createError?.status === 422 ? 409 : 400)
+
+  const { data, error } = await supabaseAuth.auth.signInWithPassword({ email: input.email, password: input.password })
+  if (error) {
+    await supabaseAdmin.auth.admin.deleteUser(created.user.id)
+    throw new AppError('Could not sign in to the new account', 500)
+  }
   return { session: data.session, username }
 }
 

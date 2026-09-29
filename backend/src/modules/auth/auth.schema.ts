@@ -1,7 +1,7 @@
 import { z } from 'zod'
 
 export const registerSchema = z.object({
-  name: z.string().trim().min(2).max(60),
+  name: z.string().trim().min(2).max(30).regex(/^\S+$/, 'Enter first name only'),
   age: z.coerce.number().int().min(13).max(120),
   gender: z.enum(['male', 'female', 'non_binary', 'prefer_not_to_say']),
   email: z.email(),
