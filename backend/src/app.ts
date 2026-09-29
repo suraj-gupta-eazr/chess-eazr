@@ -1,5 +1,5 @@
 import cors from 'cors'
-import express from 'express'
+import express, { type RequestHandler } from 'express'
 import helmet from 'helmet'
 import { env } from './config/env.js'
 import { errorHandler } from './middleware/error.js'
@@ -13,7 +13,7 @@ import { tournamentRoutes } from './modules/tournaments/tournament.routes.js'
 
 const app = express()
 
-app.use(helmet())
+app.use((helmet as unknown as () => RequestHandler)())
 app.use(cors({ origin: env.webOrigins }))
 app.use(express.json({ limit: '32kb' }))
 
