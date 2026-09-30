@@ -3,11 +3,12 @@ import { AppError } from '../../shared/http.js'
 import { settleTournamentGame } from '../tournaments/tournament.service.js'
 import type { z } from 'zod'
 import type { moveSchema } from './game.schema.js'
-import { restoreGame } from './game.engine.js'
+import { chooseBotMove, restoreGame } from './game.engine.js'
 
 export async function getGame(userId: string, gameId: string) {
   const [game] = await db`
-    select g.*, w.username as white_username, b.username as black_username,
+    select g.*, w.username as white_username,
+      case when g.bot_side = 'black' then 'Club Bot' else b.username end as black_username,
       case when g.white_id = ${userId} then 'white'
         when g.black_id = ${userId} then 'black' else 'spectator' end as viewer_role
     from games g join profiles w on w.id = g.white_id join profiles b on b.id = g.black_id
@@ -36,26 +37,47 @@ export async function submitMove(userId: string, gameId: string, input: z.infer<
     if (current.status !== 'active') throw new AppError('This game is finished', 409)
     if (current.version !== input.version) throw new AppError('Board changed; reload the position', 409)
     const chess = restoreGame(current.fen, current.pgn)
+    if (current.bot_side === 'black' && chess.turn() === 'b') throw new AppError('The bot is thinking', 409)
     const movingId = chess.turn() === 'w' ? current.white_id : current.black_id
     if (movingId !== userId) throw new AppError('Wait for your turn', 409)
     const elapsed = Date.now() - new Date(current.last_move_at).getTime()
     const whiteMs = chess.turn() === 'w' ? current.white_ms - elapsed : current.white_ms
     const blackMs = chess.turn() === 'b' ? current.black_ms - elapsed : current.black_ms
     if (whiteMs <= 0 || blackMs <= 0) throw new AppError('Your clock has expired', 409)
-    let move
-    try { move = chess.move(input) } catch { throw new AppError('That move is not legal') }
-    const status = chess.isGameOver() ? 'finished' : 'active'
-    const result = chess.isCheckmate() ? (chess.turn() === 'w' ? '0-1' : '1-0') : chess.isDraw() ? '1/2-1/2' : null
-    const [updated] = await transaction`
-      update games set fen = ${chess.fen()}, pgn = ${chess.pgn()}, white_ms = ${Math.max(0, whiteMs)},
-        black_ms = ${Math.max(0, blackMs)}, last_move = ${input.from + input.to + input.promotion},
-        last_move_at = now(), version = version + 1, status = ${status}, result = ${result},
-        finished_at = ${status === 'finished' ? new Date() : null}
-      where id = ${current.id} returning *
-    `
+    let playerMove
+    try { playerMove = chess.move(input) } catch { throw new AppError('That move is not legal') }
+    let version = current.version + 1
+    let lastMove = playerMove.from + playerMove.to + (playerMove.promotion ?? '')
+    let status = chess.isGameOver() ? 'finished' : 'active'
+    let result = chess.isCheckmate() ? (chess.turn() === 'w' ? '0-1' : '1-0') : chess.isDraw() ? '1/2-1/2' : null
     await transaction`
       insert into game_moves (game_id, ply, san, from_square, to_square, fen_after, white_ms, black_ms)
-      values (${current.id}, ${current.version + 1}, ${move.san}, ${move.from}, ${move.to}, ${chess.fen()}, ${Math.max(0, whiteMs)}, ${Math.max(0, blackMs)})
+      values (${current.id}, ${version}, ${playerMove.san}, ${playerMove.from}, ${playerMove.to}, ${chess.fen()}, ${Math.max(0, whiteMs)}, ${Math.max(0, blackMs)})
+    `
+
+    let finalBlackMs = Math.max(0, blackMs)
+    if (current.bot_side === 'black' && status === 'active') {
+      finalBlackMs = Math.max(0, finalBlackMs - 450)
+      const botInput = chooseBotMove(chess)
+      if (finalBlackMs === 0 || !botInput) { status = 'finished'; result = '1-0' }
+      else {
+        const botMove = chess.move(botInput)
+        version += 1
+        lastMove = botMove.from + botMove.to + (botMove.promotion ?? '')
+        status = chess.isGameOver() ? 'finished' : 'active'
+        result = chess.isCheckmate() ? (chess.turn() === 'w' ? '0-1' : '1-0') : chess.isDraw() ? '1/2-1/2' : null
+        await transaction`
+          insert into game_moves (game_id, ply, san, from_square, to_square, fen_after, white_ms, black_ms)
+          values (${current.id}, ${version}, ${botMove.san}, ${botMove.from}, ${botMove.to}, ${chess.fen()}, ${Math.max(0, whiteMs)}, ${finalBlackMs})
+        `
+      }
+    }
+
+    const [updated] = await transaction`
+      update games set fen = ${chess.fen()}, pgn = ${chess.pgn()}, white_ms = ${Math.max(0, whiteMs)},
+        black_ms = ${finalBlackMs}, last_move = ${lastMove}, last_move_at = now(), version = ${version},
+        status = ${status}, result = ${result}, finished_at = ${status === 'finished' ? new Date() : null}
+      where id = ${current.id} returning *
     `
     if (status === 'finished') await settleTournamentGame(transaction, updated)
     return updated

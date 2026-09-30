@@ -20,6 +20,7 @@ export function GamePage() {
   const [selected, setSelected] = useState<Square | null>(null)
   const [reviewPly, setReviewPly] = useState<number | null>(null)
   const [error, setError] = useState('')
+  const [moving, setMoving] = useState(false)
   const [now, setNow] = useState(Date.now())
   const load = () => api<Game>(`/games/${id}`).then(setGame).catch((cause) => setError(cause.message))
 
@@ -47,11 +48,13 @@ export function GamePage() {
   const currentPosition = livePosition
   const isPlayer = currentGame.viewer_role !== 'spectator'
   const isWhite = currentGame.viewer_role !== 'black'
-  const canPlay = isPlayer && currentGame.status === 'active' && reviewPly === null
+  const canPlay = isPlayer && currentGame.status === 'active' && reviewPly === null && !moving
   const files = isWhite ? ['a','b','c','d','e','f','g','h'] : ['h','g','f','e','d','c','b','a']
   const ranks = isWhite ? [8,7,6,5,4,3,2,1] : [1,2,3,4,5,6,7,8]
   const legal = canPlay && selected ? currentPosition.moves({ square: selected, verbose: true }).map((move) => move.to) : []
   const opponent = currentGame.viewer_role === 'white' ? currentGame.black_username : currentGame.white_username
+  const lastFrom = currentGame.last_move?.slice(0, 2)
+  const lastTo = currentGame.last_move?.slice(2, 4)
   const resultText = currentGame.result === '1/2-1/2' ? 'Draw' : currentGame.result === '1-0' ? `${currentGame.white_username} won` : currentGame.result === '0-1' ? `${currentGame.black_username} won` : 'In progress'
 
   async function squareClick(square: Square) {
@@ -60,9 +63,16 @@ export function GamePage() {
     if (square === selected) { setSelected(null); return }
     if (!legal.includes(square)) { const piece = currentPosition.get(square); setSelected(piece?.color === (isWhite ? 'w' : 'b') ? square : null); return }
     try {
-      await api(`/games/${currentGame.id}/move`, { method: 'POST', body: JSON.stringify({ from: selected, to: square, promotion: 'q', version: currentGame.version }) })
-      setSelected(null); setError(''); await load()
-    } catch (cause) { setError((cause as Error).message); setSelected(null); void load() }
+      setMoving(true)
+      const optimisticPosition = new Chess(currentGame.fen)
+      const optimisticMove = optimisticPosition.move({ from: selected, to: square, promotion: 'q' })
+      const playedAt = new Date().toISOString()
+      setGame({ ...currentGame, fen: optimisticPosition.fen(), pgn: optimisticPosition.pgn(), last_move: `${selected}${square}${optimisticMove.promotion ?? ''}`, last_move_at: playedAt, version: currentGame.version + 1, white_ms: currentPosition.turn() === 'w' ? whiteTime : currentGame.white_ms, black_ms: currentPosition.turn() === 'b' ? blackTime : currentGame.black_ms, moves: [...currentGame.moves, { ply: currentGame.version + 1, san: optimisticMove.san, from_square: optimisticMove.from, to_square: optimisticMove.to, fen_after: optimisticPosition.fen(), white_ms: currentPosition.turn() === 'w' ? whiteTime : currentGame.white_ms, black_ms: currentPosition.turn() === 'b' ? blackTime : currentGame.black_ms, played_at: playedAt }] })
+      setSelected(null); setError('')
+      const updated = await api<Game>(`/games/${currentGame.id}/move`, { method: 'POST', body: JSON.stringify({ from: selected, to: square, promotion: 'q', version: currentGame.version }) })
+      if (updated.bot_side) setTimeout(() => { setGame(updated); setMoving(false) }, 420)
+      else { setGame(updated); setMoving(false) }
+    } catch (cause) { setError((cause as Error).message); setSelected(null); setMoving(false); setGame(currentGame); void load() }
   }
   async function resign() { if (confirm('Resign this game?')) { await api(`/games/${currentGame.id}/resign`, { method: 'POST' }); await load() } }
 
@@ -72,9 +82,9 @@ export function GamePage() {
     <header><div><p className="eyebrow dark">{currentGame.status === 'finished' ? 'GAME REVIEW' : isPlayer ? 'LIVE MATCH' : 'WATCHING LIVE'}</p><h1>{isPlayer ? <>You <em>vs</em> {opponent}</> : <>{currentGame.white_username} <em>vs</em> {currentGame.black_username}</>}</h1></div>{isPlayer && <button className="text-button danger" onClick={resign} disabled={currentGame.status !== 'active'}>Resign</button>}</header>
     {currentGame.viewer_role === 'spectator' && <p className="spectator-note">Spectator view · You can watch the position and replay every move, but only the assigned players can move.</p>}
     {error && <p className="form-error">{error}</p>}
-    <div className="game-layout"><div className="board-column"><div className="board-wrap"><div className="chessboard" role="grid" aria-label={reviewPly === null ? 'Current chess position' : `Chess position after move ${reviewPly}`}>{ranks.flatMap((rank) => files.map((file) => {
+    <div className="game-layout"><div className="board-column"><div className="board-meta"><span>{isWhite ? 'WHITE' : 'BLACK'} SIDE</span><b>{currentGame.time_control_ms / 60000} MIN · {currentGame.bot_side ? 'BOT GAME' : 'LIVE GAME'}</b></div><div className={`board-wrap ${moving ? 'moving' : ''}`}><div className="chessboard" role="grid" aria-label={reviewPly === null ? 'Current chess position' : `Chess position after move ${reviewPly}`}>{ranks.flatMap((rank) => files.map((file) => {
         const square = `${file}${rank}` as Square; const piece = displayPosition.get(square); const dark = (files.indexOf(file) + ranks.indexOf(rank)) % 2 === 1
-        return <button role="gridcell" aria-label={`${square}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`} key={square} onClick={() => squareClick(square)} className={`${dark ? 'dark-square' : 'light-square'} ${selected === square && canPlay ? 'selected' : ''} ${legal.includes(square) ? 'legal' : ''}`}><span>{piece ? pieceGlyph[`${piece.color}${piece.type}`] : ''}</span>{file === files[0] && <small className="rank-label">{rank}</small>}{rank === ranks[ranks.length - 1] && <small className="file-label">{file}</small>}</button>
+        return <button role="gridcell" aria-label={`${square}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`} key={square} onClick={() => squareClick(square)} className={`${dark ? 'dark-square' : 'light-square'} ${selected === square && canPlay ? 'selected' : ''} ${legal.includes(square) ? 'legal' : ''} ${legal.includes(square) && piece ? 'capture' : ''} ${reviewPly === null && (square === lastFrom || square === lastTo) ? 'last-move' : ''}`}><span>{piece ? pieceGlyph[`${piece.color}${piece.type}`] : ''}</span>{file === files[0] && <small className="rank-label">{rank}</small>}{rank === ranks[ranks.length - 1] && <small className="file-label">{file}</small>}</button>
       }))}</div></div>
       <div className="replay-controls" aria-label="Replay controls"><button onClick={() => setReviewPly(0)} disabled={!currentGame.moves.length}>|← Start</button><button onClick={() => setReviewPly(Math.max(0, visiblePly - 1))} disabled={visiblePly === 0}>← Previous</button><span>{reviewPly === null ? 'Latest position' : `Move ${reviewPly} of ${currentGame.moves.length}`}</span><button onClick={() => setReviewPly(visiblePly + 1 >= currentGame.moves.length ? null : visiblePly + 1)} disabled={visiblePly >= currentGame.moves.length}>Next →</button><button onClick={() => setReviewPly(null)} disabled={reviewPly === null}>End →|</button></div>
       </div>
