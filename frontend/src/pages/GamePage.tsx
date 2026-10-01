@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Chess, type Square } from 'chess.js'
 import { useParams } from 'react-router-dom'
+import { ChessPiece } from '../components/ChessPiece'
 import { Loading } from '../components/ui'
 import { api } from '../services/api'
 import { authorizeRealtime, realtime } from '../services/realtime'
 import type { Game } from '../types/domain'
 
 const initialFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
-const pieceGlyph: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }
 
 function movesForPiece(position: Chess, square: Square) {
   const piece = position.get(square)
@@ -100,7 +100,7 @@ export function GamePage() {
       <PlayerClock name={isWhite ? currentGame.black_username : currentGame.white_username} time={isWhite ? blackTime : whiteTime} active={currentGame.status === 'active' && currentPosition.turn() === (isWhite ? 'b' : 'w')} color={isWhite ? 'black' : 'white'} />
       <div className={`board-wrap ${moving ? 'moving' : ''} ${selected && !canMoveSelected ? 'planning' : ''}`}><div className="chessboard" role="grid" aria-label={reviewPly === null ? 'Current chess position' : `Chess position after move ${reviewPly}`}>{ranks.flatMap((rank) => files.map((file) => {
         const square = `${file}${rank}` as Square; const piece = displayPosition.get(square); const dark = (files.indexOf(file) + ranks.indexOf(rank)) % 2 === 1
-        return <button role="gridcell" aria-selected={selected === square} aria-label={`${square}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`} key={square} onClick={() => squareClick(square)} className={`${dark ? 'dark-square' : 'light-square'} ${selected === square ? 'selected' : ''} ${legal.has(square) ? 'legal' : ''} ${captures.has(square) ? 'capture' : ''} ${legal.has(square) && !canMoveSelected ? 'planning-target' : ''} ${reviewPly === null && (square === lastFrom || square === lastTo) ? 'last-move' : ''}`}><span className={piece ? `board-piece ${piece.color}` : ''}>{piece ? pieceGlyph[piece.type] : ''}</span>{file === files[0] && <small className="rank-label">{rank}</small>}{rank === ranks[ranks.length - 1] && <small className="file-label">{file}</small>}</button>
+        return <button role="gridcell" aria-selected={selected === square} aria-label={`${square}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`} key={square} onClick={() => squareClick(square)} className={`${dark ? 'dark-square' : 'light-square'} ${selected === square ? 'selected' : ''} ${legal.has(square) ? 'legal' : ''} ${captures.has(square) ? 'capture' : ''} ${legal.has(square) && !canMoveSelected ? 'planning-target' : ''} ${reviewPly === null && (square === lastFrom || square === lastTo) ? 'last-move' : ''}`}>{piece ? <ChessPiece type={piece.type} color={piece.color} /> : null}{file === files[0] && <small className="rank-label">{rank}</small>}{rank === ranks[ranks.length - 1] && <small className="file-label">{file}</small>}</button>
       }))}</div></div>
       <PlayerClock name={isWhite ? currentGame.white_username : currentGame.black_username} time={isWhite ? whiteTime : blackTime} active={currentGame.status === 'active' && currentPosition.turn() === (isWhite ? 'w' : 'b')} color={isWhite ? 'white' : 'black'} you={isPlayer} />
       <div className="board-meta"><span>{isWhite ? 'WHITE' : 'BLACK'} SIDE</span><b>{currentGame.time_control_ms / 60000} MIN · {currentGame.bot_side ? 'BOT GAME' : 'LIVE GAME'}</b></div>
