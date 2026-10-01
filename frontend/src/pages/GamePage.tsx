@@ -20,7 +20,7 @@ function movesForPiece(position: Chess, square: Square) {
 
 function PlayerClock({ name, time, active, color, you = false }: { name: string; time: number; active: boolean; color: 'white' | 'black'; you?: boolean }) {
   const minutes = Math.floor(time / 60000); const seconds = Math.floor((time % 60000) / 1000)
-  return <div className={`player-clock ${active ? 'active' : ''}`}><span className={`piece-dot ${color}`}>♟</span><div><b>{name}{you ? ' (You)' : ''}</b><small>{active ? 'clock running' : 'waiting'}</small></div><time>{minutes}:{String(seconds).padStart(2, '0')}</time></div>
+  return <div className={`player-clock ${active ? 'active' : ''}`}><span className={`piece-dot ${color}`} aria-hidden="true">{name.slice(0, 1).toUpperCase()}</span><div><b>{name}{you ? ' (You)' : ''}</b><small>{active ? 'Your clock is running' : 'Waiting'}</small></div><time>{minutes}:{String(seconds).padStart(2, '0')}</time></div>
 }
 
 export function GamePage() {
