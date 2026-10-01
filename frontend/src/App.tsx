@@ -10,6 +10,7 @@ const ClubPage = lazy(() => import('./pages/ClubPage').then((module) => ({ defau
 const ClubsPage = lazy(() => import('./pages/ClubsPage').then((module) => ({ default: module.ClubsPage })))
 const DashboardPage = lazy(() => import('./pages/DashboardPage').then((module) => ({ default: module.DashboardPage })))
 const GamePage = lazy(() => import('./pages/GamePage').then((module) => ({ default: module.GamePage })))
+const HistoryPage = lazy(() => import('./pages/HistoryPage').then((module) => ({ default: module.HistoryPage })))
 const MatchmakingPage = lazy(() => import('./pages/MatchmakingPage').then((module) => ({ default: module.MatchmakingPage })))
 const ProfilePage = lazy(() => import('./pages/ProfilePage').then((module) => ({ default: module.ProfilePage })))
 const TournamentPage = lazy(() => import('./pages/TournamentPage').then((module) => ({ default: module.TournamentPage })))
@@ -34,6 +35,7 @@ export default function App() {
     <Route path="/clubs/:id" element={<ClubPage profile={profile} />} />
     <Route path="/tournaments/:id" element={<TournamentPage profile={profile} />} />
     <Route path="/play" element={<MatchmakingPage />} />
+    <Route path="/history" element={<HistoryPage />} />
     <Route path="/games/:id" element={<GamePage />} />
     <Route path="*" element={<Navigate to="/" replace />} />
   </Routes></Suspense></Shell>

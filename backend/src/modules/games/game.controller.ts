@@ -3,6 +3,7 @@ import { currentUser, pathParam } from '../../shared/http.js'
 import { moveSchema } from './game.schema.js'
 import * as service from './game.service.js'
 
+export async function index(request: Request, response: Response) { response.json(await service.listGames(currentUser(request).id)) }
 export async function show(request: Request, response: Response) { response.json(await service.getGame(currentUser(request).id, pathParam(request, 'id'))) }
 export async function move(request: Request, response: Response) {
   const userId = currentUser(request).id

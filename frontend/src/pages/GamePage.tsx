@@ -7,11 +7,20 @@ import { authorizeRealtime, realtime } from '../services/realtime'
 import type { Game } from '../types/domain'
 
 const initialFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
-const pieceGlyph: Record<string, string> = { wp: '♙', wn: '♘', wb: '♗', wr: '♖', wq: '♕', wk: '♔', bp: '♟', bn: '♞', bb: '♝', br: '♜', bq: '♛', bk: '♚' }
+const pieceGlyph: Record<string, string> = { p: '♟', n: '♞', b: '♝', r: '♜', q: '♛', k: '♚' }
 
-function PlayerClock({ name, time, active, color }: { name: string; time: number; active: boolean; color: 'white' | 'black' }) {
+function movesForPiece(position: Chess, square: Square) {
+  const piece = position.get(square)
+  if (!piece) return []
+  const fen = position.fen().split(' ')
+  if (fen[1] !== piece.color) fen[3] = '-'
+  fen[1] = piece.color
+  try { return new Chess(fen.join(' ')).moves({ square, verbose: true }) } catch { return [] }
+}
+
+function PlayerClock({ name, time, active, color, you = false }: { name: string; time: number; active: boolean; color: 'white' | 'black'; you?: boolean }) {
   const minutes = Math.floor(time / 60000); const seconds = Math.floor((time % 60000) / 1000)
-  return <div className={`player-clock ${active ? 'active' : ''}`}><span className={`piece-dot ${color}`}>{color === 'white' ? '♙' : '♟'}</span><div><b>{name}</b><small>{active ? 'clock running' : 'waiting'}</small></div><time>{minutes}:{String(seconds).padStart(2, '0')}</time></div>
+  return <div className={`player-clock ${active ? 'active' : ''}`}><span className={`piece-dot ${color}`}>♟</span><div><b>{name}{you ? ' (You)' : ''}</b><small>{active ? 'clock running' : 'waiting'}</small></div><time>{minutes}:{String(seconds).padStart(2, '0')}</time></div>
 }
 
 export function GamePage() {
@@ -48,20 +57,25 @@ export function GamePage() {
   const currentPosition = livePosition
   const isPlayer = currentGame.viewer_role !== 'spectator'
   const isWhite = currentGame.viewer_role !== 'black'
-  const canPlay = isPlayer && currentGame.status === 'active' && reviewPly === null && !moving
+  const playerColor = isWhite ? 'w' : 'b'
+  const isMyTurn = isPlayer && currentPosition.turn() === playerColor
+  const canInspect = isPlayer && currentGame.status === 'active' && reviewPly === null && !moving
   const files = isWhite ? ['a','b','c','d','e','f','g','h'] : ['h','g','f','e','d','c','b','a']
   const ranks = isWhite ? [8,7,6,5,4,3,2,1] : [1,2,3,4,5,6,7,8]
-  const legal = canPlay && selected ? currentPosition.moves({ square: selected, verbose: true }).map((move) => move.to) : []
+  const previewMoves = canInspect && selected ? movesForPiece(currentPosition, selected) : []
+  const legal = new Set(previewMoves.map((move) => move.to))
+  const captures = new Set(previewMoves.filter((move) => move.captured).map((move) => move.to))
+  const canMoveSelected = Boolean(isMyTurn && selected && currentPosition.get(selected)?.color === playerColor)
   const opponent = currentGame.viewer_role === 'white' ? currentGame.black_username : currentGame.white_username
   const lastFrom = currentGame.last_move?.slice(0, 2)
   const lastTo = currentGame.last_move?.slice(2, 4)
   const resultText = currentGame.result === '1/2-1/2' ? 'Draw' : currentGame.result === '1-0' ? `${currentGame.white_username} won` : currentGame.result === '0-1' ? `${currentGame.black_username} won` : 'In progress'
 
   async function squareClick(square: Square) {
-    if (!canPlay) return
-    if (!selected) { const piece = currentPosition.get(square); if (piece?.color === (isWhite ? 'w' : 'b') && currentPosition.turn() === piece.color) setSelected(square); return }
+    if (!canInspect) return
+    if (!selected) { if (currentPosition.get(square)) setSelected(square); return }
     if (square === selected) { setSelected(null); return }
-    if (!legal.includes(square)) { const piece = currentPosition.get(square); setSelected(piece?.color === (isWhite ? 'w' : 'b') ? square : null); return }
+    if (!canMoveSelected || !legal.has(square)) { setSelected(currentPosition.get(square) ? square : null); return }
     try {
       setMoving(true)
       const optimisticPosition = new Chess(currentGame.fen)
@@ -82,16 +96,19 @@ export function GamePage() {
     <header><div><p className="eyebrow dark">{currentGame.status === 'finished' ? 'GAME REVIEW' : isPlayer ? 'LIVE MATCH' : 'WATCHING LIVE'}</p><h1>{isPlayer ? <>You <em>vs</em> {opponent}</> : <>{currentGame.white_username} <em>vs</em> {currentGame.black_username}</>}</h1></div>{isPlayer && <button className="text-button danger" onClick={resign} disabled={currentGame.status !== 'active'}>Resign</button>}</header>
     {currentGame.viewer_role === 'spectator' && <p className="spectator-note">Spectator view · You can watch the position and replay every move, but only the assigned players can move.</p>}
     {error && <p className="form-error">{error}</p>}
-    <div className="game-layout"><div className="board-column"><div className="board-meta"><span>{isWhite ? 'WHITE' : 'BLACK'} SIDE</span><b>{currentGame.time_control_ms / 60000} MIN · {currentGame.bot_side ? 'BOT GAME' : 'LIVE GAME'}</b></div><div className={`board-wrap ${moving ? 'moving' : ''}`}><div className="chessboard" role="grid" aria-label={reviewPly === null ? 'Current chess position' : `Chess position after move ${reviewPly}`}>{ranks.flatMap((rank) => files.map((file) => {
+    <div className="game-layout"><div className="board-column">
+      <PlayerClock name={isWhite ? currentGame.black_username : currentGame.white_username} time={isWhite ? blackTime : whiteTime} active={currentGame.status === 'active' && currentPosition.turn() === (isWhite ? 'b' : 'w')} color={isWhite ? 'black' : 'white'} />
+      <div className={`board-wrap ${moving ? 'moving' : ''} ${selected && !canMoveSelected ? 'planning' : ''}`}><div className="chessboard" role="grid" aria-label={reviewPly === null ? 'Current chess position' : `Chess position after move ${reviewPly}`}>{ranks.flatMap((rank) => files.map((file) => {
         const square = `${file}${rank}` as Square; const piece = displayPosition.get(square); const dark = (files.indexOf(file) + ranks.indexOf(rank)) % 2 === 1
-        return <button role="gridcell" aria-label={`${square}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`} key={square} onClick={() => squareClick(square)} className={`${dark ? 'dark-square' : 'light-square'} ${selected === square && canPlay ? 'selected' : ''} ${legal.includes(square) ? 'legal' : ''} ${legal.includes(square) && piece ? 'capture' : ''} ${reviewPly === null && (square === lastFrom || square === lastTo) ? 'last-move' : ''}`}><span>{piece ? pieceGlyph[`${piece.color}${piece.type}`] : ''}</span>{file === files[0] && <small className="rank-label">{rank}</small>}{rank === ranks[ranks.length - 1] && <small className="file-label">{file}</small>}</button>
+        return <button role="gridcell" aria-selected={selected === square} aria-label={`${square}${piece ? ` ${piece.color === 'w' ? 'white' : 'black'} ${piece.type}` : ''}`} key={square} onClick={() => squareClick(square)} className={`${dark ? 'dark-square' : 'light-square'} ${selected === square ? 'selected' : ''} ${legal.has(square) ? 'legal' : ''} ${captures.has(square) ? 'capture' : ''} ${legal.has(square) && !canMoveSelected ? 'planning-target' : ''} ${reviewPly === null && (square === lastFrom || square === lastTo) ? 'last-move' : ''}`}><span className={piece ? `board-piece ${piece.color}` : ''}>{piece ? pieceGlyph[piece.type] : ''}</span>{file === files[0] && <small className="rank-label">{rank}</small>}{rank === ranks[ranks.length - 1] && <small className="file-label">{file}</small>}</button>
       }))}</div></div>
+      <PlayerClock name={isWhite ? currentGame.white_username : currentGame.black_username} time={isWhite ? whiteTime : blackTime} active={currentGame.status === 'active' && currentPosition.turn() === (isWhite ? 'w' : 'b')} color={isWhite ? 'white' : 'black'} you={isPlayer} />
+      <div className="board-meta"><span>{isWhite ? 'WHITE' : 'BLACK'} SIDE</span><b>{currentGame.time_control_ms / 60000} MIN · {currentGame.bot_side ? 'BOT GAME' : 'LIVE GAME'}</b></div>
       <div className="replay-controls" aria-label="Replay controls"><button onClick={() => setReviewPly(0)} disabled={!currentGame.moves.length}>|← Start</button><button onClick={() => setReviewPly(Math.max(0, visiblePly - 1))} disabled={visiblePly === 0}>← Previous</button><span>{reviewPly === null ? 'Latest position' : `Move ${reviewPly} of ${currentGame.moves.length}`}</span><button onClick={() => setReviewPly(visiblePly + 1 >= currentGame.moves.length ? null : visiblePly + 1)} disabled={visiblePly >= currentGame.moves.length}>Next →</button><button onClick={() => setReviewPly(null)} disabled={reviewPly === null}>End →|</button></div>
       </div>
-      <aside className="score-panel"><PlayerClock name={currentGame.black_username} time={blackTime} active={currentGame.status === 'active' && livePosition.turn() === 'b'} color="black" />
-        <div className={`turn-card ${currentGame.status}`}><small>{currentGame.status === 'finished' ? 'RESULT' : reviewPly !== null ? 'REPLAY' : 'TURN'}</small><strong>{currentGame.status === 'finished' ? resultText : reviewPly !== null ? `Position after ply ${reviewPly}` : currentGame.viewer_role === 'spectator' ? `${livePosition.turn() === 'w' ? currentGame.white_username : currentGame.black_username} to move` : livePosition.turn() === (isWhite ? 'w' : 'b') ? 'Your move' : `${opponent} is thinking`}</strong></div>
+      <aside className="score-panel">
+        <div className={`turn-card ${currentGame.status}`}><small>{currentGame.status === 'finished' ? 'RESULT' : reviewPly !== null ? 'REPLAY' : isMyTurn ? 'YOUR TURN' : 'PLANNING MODE'}</small><strong>{currentGame.status === 'finished' ? resultText : reviewPly !== null ? `Position after ply ${reviewPly}` : currentGame.viewer_role === 'spectator' ? `${livePosition.turn() === 'w' ? currentGame.white_username : currentGame.black_username} to move` : isMyTurn ? 'Make your move' : `${opponent} is thinking`}</strong>{isPlayer && currentGame.status === 'active' && reviewPly === null && <p>{isMyTurn ? 'Select your piece, then choose a highlighted square.' : 'Select any piece to study its moves. Moving unlocks after your opponent plays.'}</p>}</div>
         <div className="move-sheet"><div><h2>Moves</h2><small>{currentGame.moves.length} plies</small></div><ol>{moveRows.map((row, index) => <li key={index}><span>{index + 1}.</span>{row.map((move) => <button className={visiblePly === move.ply ? 'current' : ''} onClick={() => setReviewPly(move.ply === currentGame.moves.length ? null : move.ply)} key={move.ply}>{move.san}</button>)}</li>)}{moveRows.length === 0 && <p>No moves played yet.</p>}</ol></div>
-        <PlayerClock name={currentGame.white_username} time={whiteTime} active={currentGame.status === 'active' && livePosition.turn() === 'w'} color="white" />
       </aside>
     </div>
   </section>

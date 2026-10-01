@@ -5,6 +5,22 @@ import type { z } from 'zod'
 import type { moveSchema } from './game.schema.js'
 import { chooseBotMove, restoreGame } from './game.engine.js'
 
+export async function listGames(userId: string) {
+  return db`
+    select g.id, g.white_id, g.black_id, g.status, g.result, g.time_control_ms,
+      g.bot_side, g.created_at, g.finished_at, g.last_move_at,
+      w.username as white_username,
+      case when g.bot_side = 'black' then 'Club Bot' else b.username end as black_username,
+      case when g.white_id = ${userId} then 'white' else 'black' end as viewer_role,
+      (select count(*)::integer from game_moves gm where gm.game_id = g.id) as move_count
+    from games g
+    join profiles w on w.id = g.white_id
+    join profiles b on b.id = g.black_id
+    where ${userId} in (g.white_id, g.black_id)
+    order by coalesce(g.finished_at, g.created_at) desc
+  `
+}
+
 export async function getGame(userId: string, gameId: string) {
   const [game] = await db`
     select g.*, w.username as white_username,

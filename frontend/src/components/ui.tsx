@@ -10,7 +10,7 @@ export function PublicLayout({ children }: { children: ReactNode }) {
     <section className="auth-story">
       <Link to="/" className="brand brand-on-dark"><Mark /> CHECKMATE CLUB</Link>
       <div className="story-copy"><p className="eyebrow">THE CLUB IS OPEN</p><h1>Every move<br />finds its match.</h1><p>Play a stranger. Build your club. Take the final square.</p></div>
-      <p className="story-note">10 minute games · live tournaments · no noise</p>
+      <p className="story-note">5–30 minute games · live tournaments · no noise</p>
     </section>
     <section className="auth-panel">{children}</section>
   </main>
