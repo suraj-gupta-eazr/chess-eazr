@@ -1,7 +1,0 @@
-RhosGFX chess pieces by RhosGFX, sourced from Lichess.
-
-Dedicated to the public domain under CC0 1.0:
-https://creativecommons.org/publicdomain/zero/1.0/
-
-Source:
-https://github.com/lichess-org/lila/tree/master/public/piece/rhosgfx
